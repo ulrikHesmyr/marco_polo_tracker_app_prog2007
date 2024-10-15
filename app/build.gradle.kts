@@ -9,7 +9,8 @@ android {
 
     defaultConfig {
         applicationId = "com.example.marco_polo"
-        minSdk = 31
+        // Lowering the minSdk to 21 for broader compatibility
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -60,6 +61,8 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation("androidx.navigation:navigation-compose:2.6.0")
+    implementation(libs.play.services.location)
+    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
