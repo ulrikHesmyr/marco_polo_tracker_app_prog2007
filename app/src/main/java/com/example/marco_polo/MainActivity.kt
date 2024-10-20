@@ -1,7 +1,6 @@
 package com.example.marco_polo
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -18,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -135,6 +133,10 @@ class MainActivity : ComponentActivity() {
                         ) {
                             Text(text = "Connect")
                         }
+
+                        if(socketClient.errorMessage.value !== ""){
+                            Text(socketClient.errorMessage.value)
+                        }
                     }
                 }
             }
@@ -211,7 +213,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         // Exit Button
                         Button(
-                            onClick = { socketClient.disconnect(); navController.navigate("initial_screen") },
+                            onClick = { socketClient.leaveRoom(); navController.navigate("initial_screen") },
                             modifier = Modifier
                                 .wrapContentSize()
                                 .padding(8.dp)

@@ -11,10 +11,10 @@ import org.json.JSONObject
 
 class Geolocation(val lat : Double, val long : Double)
 
-class SocketClient() : ViewModel() {
+class SocketClient : ViewModel() {
 
     private lateinit var socket: Socket
-    private val geolocationEmitDelaySeconds : Long = 2;
+    private val geolocationEmitDelaySeconds : Long = 2
     private val serverURL = "https://marco-polo-websocket-server.onrender.com/"
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var geolocationInterval: Runnable
@@ -109,7 +109,6 @@ class SocketClient() : ViewModel() {
 
         geolocationInterval = object : Runnable {
             override fun run() {
-                println("Emitting position") //TODO: remove this line
                 socket.emit("sent-geolocation", locationData)
                 handler.postDelayed(this, geolocationEmitDelaySeconds * 1000) // Emit every 5 seconds
             }
