@@ -66,6 +66,7 @@ class SocketClient() : ViewModel() {
         if (args.isNotEmpty()) {
             peerConnected.value = true
             roomID.value = args[0] as String
+            startGeolocationEmit()
         }
     }
 
@@ -75,6 +76,7 @@ class SocketClient() : ViewModel() {
             val latitude = data.getDouble("latitude")
             val longitude = data.getDouble("longitude")
             peerLocation.value = Geolocation(latitude, longitude)
+            println("$latitude, $longitude")
         }
     }
 

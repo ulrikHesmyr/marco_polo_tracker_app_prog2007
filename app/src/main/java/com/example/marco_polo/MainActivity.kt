@@ -29,6 +29,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.marco_polo.ui.theme.Marco_poloTheme
 import com.example.marco_polo.socket_client.SocketClient
 
+
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,7 +52,7 @@ class MainActivity : ComponentActivity() {
             composable("initial_screen") {InitialScreen(navController)}
             composable("create_screen") {CreateScreen(navController, socketClient)}
             composable("connect_screen") { ConnectScreen(navController, socketClient) }
-            composable("main_screen") { MainScreen(navController) }
+            composable("main_screen") { MainScreen(navController, socketClient) }
         }
 
         DisposableEffect(Unit) {
@@ -87,6 +88,10 @@ class MainActivity : ComponentActivity() {
                     Text("Create room")
                 }
             }
+
+            if(socketClient.peerConnected.value) {
+                navController.navigate("main_screen")
+            }
         }
     }
 
@@ -95,6 +100,10 @@ class MainActivity : ComponentActivity() {
     fun ConnectScreen(navController: NavHostController, socketClient: SocketClient) {
         // State to hold the text input
         var sessionId by remember { mutableStateOf("") }
+
+        if(socketClient.peerConnected.value) {
+            navController.navigate("main_screen")
+        }
 
         Scaffold(
             content = { padding ->
@@ -122,7 +131,6 @@ class MainActivity : ComponentActivity() {
                             onClick = {
                                 println("session/room ID is $sessionId")
                                 socketClient.joinPeerConnection(sessionId)
-
                             }
                         ) {
                             Text(text = "Connect")
@@ -131,10 +139,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         )
+
     }
 
     @Composable
-    fun MainScreen(navController: NavHostController) {
+    fun MainScreen(navController: NavHostController, socketClient : SocketClient) {
 
         Scaffold(
             topBar = {
@@ -146,7 +155,7 @@ class MainActivity : ComponentActivity() {
                         .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "Connected with: User123", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(text = "Connected room: ${socketClient.roomID.value}", fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 }
             },
             content = { padding ->
@@ -186,13 +195,10 @@ class MainActivity : ComponentActivity() {
 
                         // Distance (Placeholder text)
                         Text(text = "Distance: 352 meters", fontSize = 16.sp)
+                        Text("Peers geolocation: ${socketClient.peerLocation.value.lat}, ${socketClient.peerLocation.value.long}")
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Ping Button (Placeholder)
-                        Button(onClick = { /* Ping functionality placeholder */ }) {
-                            Text(text = "Ping Button")
-                        }
                     }
 
                     // Exit and Chat Buttons at the bottom
@@ -205,22 +211,12 @@ class MainActivity : ComponentActivity() {
                     ) {
                         // Exit Button
                         Button(
-                            onClick = { navController.navigate("connect_screen") },
+                            onClick = { socketClient.disconnect(); navController.navigate("initial_screen") },
                             modifier = Modifier
                                 .wrapContentSize()
                                 .padding(8.dp)
                         ) {
                             Text(text = "Exit")
-                        }
-
-                        // Chat Button
-                        Button(
-                            onClick = { /* Chat functionality placeholder */ },
-                            modifier = Modifier
-                                .wrapContentSize()
-                                .padding(8.dp)
-                        ) {
-                            Text(text = "Chat")
                         }
                     }
                 }
