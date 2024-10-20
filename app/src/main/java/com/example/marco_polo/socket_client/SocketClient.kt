@@ -26,7 +26,7 @@ class SocketClient : ViewModel() {
     var errorMessage = mutableStateOf("")
         private set
 
-
+    // Function to establish a websocket connection to the socket.io server and add event listeners
     fun connect(){
         try {
             socket = IO.socket(serverURL) // Set server URL
@@ -37,6 +37,7 @@ class SocketClient : ViewModel() {
         }
     }
 
+    // Function to be called when composable is de-rendered to remove all socket event listeners and close connection to socket server
     fun disconnect() {
         // Ensure socket is initialized before proceeding
         if (::socket.isInitialized) {
@@ -54,7 +55,6 @@ class SocketClient : ViewModel() {
         }
     }
 
-
     // Function to handle "room-created" event
     private val onRoomCreated = Emitter.Listener { args ->
         if (args.isNotEmpty()) {
@@ -62,6 +62,7 @@ class SocketClient : ViewModel() {
         }
     }
 
+    // Event listener function to handle when a peer connection is established
     private val onPeersConnected = Emitter.Listener { args ->
         if (args.isNotEmpty()) {
             peerConnected.value = true
@@ -70,6 +71,7 @@ class SocketClient : ViewModel() {
         }
     }
 
+    // Updating the peer's geolocation
     private val onGotGeoLocation = Emitter.Listener { args ->
         if (args.isNotEmpty()) {
             val data = args[0] as JSONObject
@@ -80,11 +82,13 @@ class SocketClient : ViewModel() {
         }
     }
 
+    // Event listener function for when the peer has disconnected from the peer connection stopping the emit interval and handle state of peer connection for UI
     private val onPeerDisconnected = Emitter.Listener { _ ->
         peerConnected.value = false
         stopGeolocationEmit()
     }
 
+    // Event listener function to handle if the room does not exist or if it is full
     private val onError = Emitter.Listener { args ->
         if (args.isNotEmpty()) {
             errorMessage.value = args[0] as String
@@ -101,7 +105,7 @@ class SocketClient : ViewModel() {
         socket.on("error", onError)
     }
 
-    // Start emitting geolocation every 5 seconds
+    // Function to start emitting the geolocation to the peer when the connection is established
     private fun startGeolocationEmit() {
         val locationData = JSONObject()
         locationData.put("latitude", 40.7128)  // Example latitude
@@ -110,7 +114,7 @@ class SocketClient : ViewModel() {
         geolocationInterval = object : Runnable {
             override fun run() {
                 socket.emit("sent-geolocation", locationData)
-                handler.postDelayed(this, geolocationEmitDelaySeconds * 1000) // Emit every 5 seconds
+                handler.postDelayed(this, geolocationEmitDelaySeconds * 1000)
             }
         }
 

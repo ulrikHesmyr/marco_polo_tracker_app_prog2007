@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
     fun AppNavigation() {
         val navController = rememberNavController()
         val socketClient : SocketClient = viewModel()
+
         socketClient.connect()
 
         NavHost(navController = navController, startDestination = "initial_screen") {
@@ -53,6 +54,7 @@ class MainActivity : ComponentActivity() {
             composable("main_screen") { MainScreen(navController, socketClient) }
         }
 
+        // Add clean up for when the composable is de-rendered to close websocket connection to the server
         DisposableEffect(Unit) {
             onDispose {
                 socketClient.disconnect()
@@ -64,6 +66,7 @@ class MainActivity : ComponentActivity() {
     fun InitialScreen(navController: NavHostController){
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
 
+            //Buttons for the user to choose if he wants to either initialize the peer connection room or whether to join an already existent one
             Button(onClick = {navController.navigate("create_screen")}) {
                 Text("Create room")
             }
@@ -134,6 +137,7 @@ class MainActivity : ComponentActivity() {
                             Text(text = "Connect")
                         }
 
+                        // Display of error message if the room does not exist or if it is full
                         if(socketClient.errorMessage.value !== ""){
                             Text(socketClient.errorMessage.value)
                         }
