@@ -1,6 +1,7 @@
 package com.example.marco_polo
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -28,13 +31,7 @@ import com.example.marco_polo.socket_client.SocketClient
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var socketClient: SocketClient
-    private val WEBSOCKET_URL = "https://marco-polo-websocket-server.onrender.com/" //"http://10.0.2.2:3000" //"http://10.212.174.70:80"
-
     override fun onCreate(savedInstanceState: Bundle?) {
-        socketClient = SocketClient()
-        socketClient.initializeSocket(WEBSOCKET_URL)
-        socketClient.connect()
         super.onCreate(savedInstanceState)
         setContent {
             Marco_poloTheme {
@@ -43,25 +40,59 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        socketClient.disconnect()
-    }
-
     // Navigation functionality between screens
     @Composable
     fun AppNavigation() {
         val navController = rememberNavController()
+        val socketClient : SocketClient = viewModel()
+        socketClient.connect()
 
-        NavHost(navController = navController, startDestination = "connect_screen") {
-            composable("connect_screen") { ConnectScreen(navController) }
+        NavHost(navController = navController, startDestination = "initial_screen") {
+            composable("initial_screen") {InitialScreen(navController)}
+            composable("create_screen") {CreateScreen(navController, socketClient)}
+            composable("connect_screen") { ConnectScreen(navController, socketClient) }
             composable("main_screen") { MainScreen(navController) }
+        }
+
+        DisposableEffect(Unit) {
+            onDispose {
+                socketClient.disconnect()
+            }
+        }
+    }
+
+    @Composable
+    fun InitialScreen(navController: NavHostController){
+        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+
+            Button(onClick = {navController.navigate("create_screen")}) {
+                Text("Create room")
+            }
+            Button(onClick = {navController.navigate("connect_screen")}) {
+                Text("Connect to room")
+            }
+        }
+
+    }
+
+    @Composable
+    fun CreateScreen(navController : NavHostController, socketClient : SocketClient){
+        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center){
+            Text("Find your friend, initialize a room to get a RoomID for you and your friend to find each other!")
+
+            if(socketClient.roomID.value !== ""){
+                Text("Room created successfully, your room ID is: ${socketClient.roomID.value}")
+            } else {
+                Button(onClick = {socketClient.initializePeerConnection()}) {
+                    Text("Create room")
+                }
+            }
         }
     }
 
     // Initial screen to connect
     @Composable
-    fun ConnectScreen(navController: NavHostController) {
+    fun ConnectScreen(navController: NavHostController, socketClient: SocketClient) {
         // State to hold the text input
         var sessionId by remember { mutableStateOf("") }
 
@@ -91,7 +122,7 @@ class MainActivity : ComponentActivity() {
                             onClick = {
                                 println("session/room ID is $sessionId")
                                 socketClient.joinPeerConnection(sessionId)
-                            //navController.navigate("main_screen")
+
                             }
                         ) {
                             Text(text = "Connect")
@@ -104,7 +135,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun MainScreen(navController: NavHostController) {
-        var socketClient = SocketClient()
+
         Scaffold(
             topBar = {
                 // Top bar showing connected user
@@ -199,21 +230,21 @@ class MainActivity : ComponentActivity() {
 
 
     // Preview Functions
-    @Preview(showBackground = true)
-    @Composable
-    fun ConnectScreenPreview() {
-        Marco_poloTheme {
-            ConnectScreen(navController = rememberNavController())
-        }
-    }
-
-    @Preview(showBackground = true)
-    @Composable
-    fun MainScreenPreview() {
-        Marco_poloTheme {
-            MainScreen(navController = rememberNavController())
-        }
-    }
+//    @Preview(showBackground = true)
+//    @Composable
+//    fun ConnectScreenPreview() {
+//        Marco_poloTheme {
+//            ConnectScreen(navController = rememberNavController())
+//        }
+//    }
+//
+//    @Preview(showBackground = true)
+//    @Composable
+//    fun MainScreenPreview() {
+//        Marco_poloTheme {
+//            MainScreen(navController = rememberNavController())
+//        }
+//    }
 }
 
 

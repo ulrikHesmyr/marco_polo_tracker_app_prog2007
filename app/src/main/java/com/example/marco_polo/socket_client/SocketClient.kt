@@ -2,31 +2,39 @@ package com.example.marco_polo.socket_client
 
 import android.os.Handler
 import android.os.Looper
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.ViewModel
 import io.socket.client.IO
 import io.socket.client.Socket
 import io.socket.emitter.Emitter
 import org.json.JSONObject
-import java.net.URISyntaxException
 
-class SocketClient {
+class Geolocation(val lat : Double, val long : Double)
+
+class SocketClient() : ViewModel() {
 
     private lateinit var socket: Socket
-    private val handler = Handler(Looper.getMainLooper()) // To run code on the main thread
     private val geolocationEmitDelaySeconds : Long = 2;
+    private val serverURL = "https://marco-polo-websocket-server.onrender.com/"
+    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var geolocationInterval: Runnable
 
-    // Initialize the Socket.IO client
-    fun initializeSocket(serverUrl: String) {
-        println("Initializing socket connection")
-        try {
-            socket = IO.socket(serverUrl) // Set server URL
-            setupSocketListeners() // Setup event listeners
-        } catch (e: URISyntaxException) {
-            e.printStackTrace()
-        }
-    }
+
+    var roomID = mutableStateOf("")
+    var peerConnected = mutableStateOf(false)
+    var peerLocation = mutableStateOf(Geolocation(0.0,0.0))
+    var errorMessage = mutableStateOf("")
+        private set
+
 
     fun connect(){
-        socket.connect()
+        try {
+            socket = IO.socket(serverURL) // Set server URL
+            setupSocketListeners() // Set
+            socket.connect()
+        } catch (e : Exception){
+            e.printStackTrace()
+        }
     }
 
     fun disconnect() {
@@ -50,22 +58,14 @@ class SocketClient {
     // Function to handle "room-created" event
     private val onRoomCreated = Emitter.Listener { args ->
         if (args.isNotEmpty()) {
-            val roomID = args[0] as String
-            handler.post {
-                // Use the roomID here
-                println("Room created: $roomID")
-                // You can also add a callback or pass the roomID to the MainActivity
-            }
+            roomID.value = args[0] as String
         }
     }
 
     private val onPeersConnected = Emitter.Listener { args ->
         if (args.isNotEmpty()) {
-            val connectedRoomID = args[0] as String
-            handler.post {
-                println("Peer connected in room: $connectedRoomID")
-                startGeolocationEmit() // Start emitting geolocation
-            }
+            peerConnected.value = true
+            roomID.value = args[0] as String
         }
     }
 
@@ -74,24 +74,18 @@ class SocketClient {
             val data = args[0] as JSONObject
             val latitude = data.getDouble("latitude")
             val longitude = data.getDouble("longitude")
-            handler.post {
-                println("Peer location: Latitude $latitude, Longitude $longitude")
-            }
+            peerLocation.value = Geolocation(latitude, longitude)
         }
     }
 
     private val onPeerDisconnected = Emitter.Listener { _ ->
-        handler.post {
-            println("Peer disconnected.")
-        }
+        peerConnected.value = false
+        stopGeolocationEmit()
     }
 
     private val onError = Emitter.Listener { args ->
         if (args.isNotEmpty()) {
-            val errorMessage = args[0] as String
-            handler.post {
-                println("Error: $errorMessage")
-            }
+            errorMessage.value = args[0] as String
         }
     }
 
@@ -111,8 +105,9 @@ class SocketClient {
         locationData.put("latitude", 40.7128)  // Example latitude
         locationData.put("longitude", -74.0060)  // Example longitude
 
-        val geolocationInterval = object : Runnable {
+        geolocationInterval = object : Runnable {
             override fun run() {
+                println("Emitting position") //TODO: remove this line
                 socket.emit("sent-geolocation", locationData)
                 handler.postDelayed(this, geolocationEmitDelaySeconds * 1000) // Emit every 5 seconds
             }
@@ -120,6 +115,11 @@ class SocketClient {
 
         // Start emitting geolocation data
         handler.post(geolocationInterval)
+
+    }
+
+    private fun stopGeolocationEmit(){
+        handler.removeCallbacks(geolocationInterval)
     }
 
     // Emit the initialize-peer-connection event
@@ -128,8 +128,8 @@ class SocketClient {
     }
 
     // Emit the join-peer-connection event
-    fun joinPeerConnection(roomID: String) {
-        socket.emit("join-peer-connection", roomID)
+    fun joinPeerConnection(roomId: String) {
+        socket.emit("join-peer-connection", roomId)
     }
 
     // Leave the room
