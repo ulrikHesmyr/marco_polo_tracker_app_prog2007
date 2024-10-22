@@ -139,6 +139,8 @@ class SocketClient : ViewModel() {
 
     // Leave the room
     fun leaveRoom() {
+        roomID.value = ""
+        peerConnected.value = false
         socket.emit("leave-room")
     }
 }
