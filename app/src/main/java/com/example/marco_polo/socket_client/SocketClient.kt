@@ -65,8 +65,12 @@ class SocketClient : ViewModel() {
     // Event listener function to handle when a peer connection is established
     private val onPeersConnected = Emitter.Listener { args ->
         if (args.isNotEmpty()) {
-            peerConnected.value = true
-            roomID.value = args[0] as String
+            if(!peerConnected.value){
+                peerConnected.value = true
+            }
+            if(roomID.value !== args[0] as String){
+                roomID.value = args[0] as String
+            }
             startGeolocationEmit()
         }
     }
@@ -77,15 +81,19 @@ class SocketClient : ViewModel() {
             val data = args[0] as JSONObject
             val latitude = data.getDouble("latitude")
             val longitude = data.getDouble("longitude")
-            peerLocation.value = Geolocation(latitude, longitude)
+            if(!(peerLocation.value.lat == latitude && peerLocation.value.long == longitude)){
+                peerLocation.value = Geolocation(latitude, longitude)
+            }
             println("$latitude, $longitude")
         }
     }
 
     // Event listener function for when the peer has disconnected from the peer connection stopping the emit interval and handle state of peer connection for UI
     private val onPeerDisconnected = Emitter.Listener { _ ->
-        peerConnected.value = false
-        stopGeolocationEmit()
+        if(peerConnected.value){
+            peerConnected.value = false
+            stopGeolocationEmit()
+        }
     }
 
     // Event listener function to handle if the room does not exist or if it is full
