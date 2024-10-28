@@ -1,37 +1,57 @@
 package com.example.marco_polo
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.marco_polo.ui.theme.Marco_poloTheme
 import com.example.marco_polo.socket_client.SocketClient
+import com.google.android.gms.location.*
+import androidx.activity.viewModels
 
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationCallback: LocationCallback
+    private val socketClient: SocketClient by viewModels()
+    private var distance by mutableStateOf(0f)
+
+    private val requestPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            if (isGranted) {
+                startLocationUpdates()
+            } else {
+                Log.e("Permission", "Location permission denied by user")
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        checkLocationPermission()
+
         setContent {
             Marco_poloTheme {
                 AppNavigation()
@@ -39,121 +59,166 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Navigation functionality between screens
     @Composable
     fun AppNavigation() {
         val navController = rememberNavController()
-        val socketClient : SocketClient = viewModel()
 
         socketClient.connect()
 
         NavHost(navController = navController, startDestination = "initial_screen") {
-            composable("initial_screen") {InitialScreen(navController)}
-            composable("create_screen") {CreateScreen(navController, socketClient)}
+            composable("initial_screen") { InitialScreen(navController) }
+            composable("create_screen") { CreateScreen(navController, socketClient) }
             composable("connect_screen") { ConnectScreen(navController, socketClient) }
             composable("main_screen") { MainScreen(navController, socketClient) }
         }
 
-        // Add clean up for when the composable is de-rendered to close websocket connection to the server
         DisposableEffect(Unit) {
             onDispose {
                 socketClient.disconnect()
+                stopLocationUpdates()
             }
         }
     }
 
-    @Composable
-    fun InitialScreen(navController: NavHostController){
-        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    private fun checkLocationPermission() {
+        if (ContextCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        } else {
+            startLocationUpdates()
+        }
+    }
 
-            //Buttons for the user to choose if he wants to either initialize the peer connection room or whether to join an already existent one
-            Button(onClick = {navController.navigate("create_screen")}) {
+    private fun startLocationUpdates() {
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000L)
+            .setMinUpdateIntervalMillis(5000L)
+            .build()
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(locationResult: LocationResult) {
+                val location: Location? = locationResult.lastLocation
+                location?.let {
+                    val lat1 = it.latitude
+                    val lon1 = it.longitude
+
+                    // Emit the current location to the peer
+                    socketClient.emitGeolocation(lat1, lon1)
+
+                    // Use peerLocation from SocketClient as the target coordinates
+                    val lat2 = socketClient.peerLocation.value.lat
+                    val lon2 = socketClient.peerLocation.value.long
+
+                    // Calculate the distance to the peer's coordinates
+                    val calculatedDistance = calculateDistance(lat1, lon1, lat2, lon2)
+                    distance = calculatedDistance
+                }
+            }
+        }
+
+        if (ActivityCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, mainLooper)
+        }
+    }
+
+    private fun stopLocationUpdates() {
+        fusedLocationClient.removeLocationUpdates(locationCallback)
+    }
+
+    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
+        val results = FloatArray(1)
+        Location.distanceBetween(lat1, lon1, lat2, lon2, results)
+        return results[0]
+    }
+
+    @Composable
+    fun InitialScreen(navController: NavHostController) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Button(onClick = { navController.navigate("create_screen") }) {
                 Text("Create room")
             }
-            Button(onClick = {navController.navigate("connect_screen")}) {
+            Button(onClick = { navController.navigate("connect_screen") }) {
                 Text("Connect to room")
             }
         }
-
     }
 
     @Composable
-    fun CreateScreen(navController : NavHostController, socketClient : SocketClient){
-        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center){
-            Text("Find your friend, initialize a room to get a RoomID for you and your friend to find each other!")
+    fun CreateScreen(navController: NavHostController, socketClient: SocketClient) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Find your friend! Initialize a room to get a RoomID.")
 
-            if(socketClient.roomID.value !== ""){
+            if (socketClient.roomID.value != "") {
                 Text("Room created successfully, your room ID is: ${socketClient.roomID.value}")
             } else {
-                Button(onClick = {socketClient.initializePeerConnection()}) {
+                Button(onClick = { socketClient.initializePeerConnection() }) {
                     Text("Create room")
                 }
             }
 
-            if(socketClient.peerConnected.value) {
+            if (socketClient.peerConnected.value) {
                 navController.navigate("main_screen")
             }
         }
     }
 
-    // Initial screen to connect
     @Composable
     fun ConnectScreen(navController: NavHostController, socketClient: SocketClient) {
-        // State to hold the text input
         var sessionId by remember { mutableStateOf("") }
 
-        if(socketClient.peerConnected.value) {
+        if (socketClient.peerConnected.value) {
             navController.navigate("main_screen")
         }
 
-        Scaffold(
-            content = { padding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
+        Scaffold(content = { padding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    OutlinedTextField(
+                        value = sessionId,
+                        onValueChange = { sessionId = it },
+                        label = { Text("Enter session ID") },
+                        placeholder = { Text("Enter session ID") },
+                        singleLine = true,
+                        modifier = Modifier.padding(bottom = 20.dp)
+                    )
+                    Button(
+                        onClick = {
+                            println("session/room ID is $sessionId")
+                            socketClient.joinPeerConnection(sessionId)
+                        }
                     ) {
-                        // TextField to input the session ID
-                        OutlinedTextField(
-                            value = sessionId,
-                            onValueChange = { sessionId = it },
-                            label = { Text("Enter session ID") },
-                            placeholder = { Text("Enter session ID") },
-                            singleLine = true,
-                            modifier = Modifier.padding(bottom = 20.dp)
-                        )
+                        Text("Connect")
+                    }
 
-                        // Connect button
-                        Button(
-                            onClick = {
-                                println("session/room ID is $sessionId")
-                                socketClient.joinPeerConnection(sessionId)
-                            }
-                        ) {
-                            Text(text = "Connect")
-                        }
-
-                        // Display of error message if the room does not exist or if it is full
-                        if(socketClient.errorMessage.value !== ""){
-                            Text(socketClient.errorMessage.value)
-                        }
+                    if (socketClient.errorMessage.value != "") {
+                        Text(socketClient.errorMessage.value)
                     }
                 }
             }
-        )
-
+        })
     }
 
     @Composable
-    fun MainScreen(navController: NavHostController, socketClient : SocketClient) {
-
+    fun MainScreen(navController: NavHostController, socketClient: SocketClient) {
         Scaffold(
             topBar = {
-                // Top bar showing connected user
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -161,7 +226,11 @@ class MainActivity : ComponentActivity() {
                         .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "Connected room: ${socketClient.roomID.value}", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(
+                        text = "Connected room: ${socketClient.roomID.value}",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
                 }
             },
             content = { padding ->
@@ -177,37 +246,24 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier.fillMaxHeight(0.8f)
                     ) {
-                        // Text field above the compass
-                        Text(text = "Direction to other person", fontSize = 20.sp, modifier = Modifier.padding(10.dp))
+                        Text("Direction to other person", fontSize = 20.sp, modifier = Modifier.padding(10.dp))
 
-                        // Arrow/Compass Box with centered arrow
                         Box(
                             modifier = Modifier
-                                .size(200.dp) // Circle size
+                                .size(200.dp)
                                 .background(Color.White, shape = CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "↑",
-                                fontSize = 200.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .offset(y = (-50).dp)
-                            )
+                            Text("↑", fontSize = 200.sp, fontWeight = FontWeight.Bold, modifier = Modifier.offset(y = (-50).dp))
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Distance (Placeholder text)
-                        Text(text = "Distance: 352 meters", fontSize = 16.sp)
-                        Text("Peers geolocation: ${socketClient.peerLocation.value.lat}, ${socketClient.peerLocation.value.long}")
+                        Text("Distance: ${distance.toInt()} meters", fontSize = 16.sp)
 
                         Spacer(modifier = Modifier.height(20.dp))
-
                     }
 
-                    // Exit and Chat Buttons at the bottom
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -215,41 +271,15 @@ class MainActivity : ComponentActivity() {
                             .padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Exit Button
                         Button(
                             onClick = { socketClient.leaveRoom(); navController.navigate("initial_screen") },
-                            modifier = Modifier
-                                .wrapContentSize()
-                                .padding(8.dp)
+                            modifier = Modifier.wrapContentSize().padding(8.dp)
                         ) {
-                            Text(text = "Exit")
+                            Text("Exit")
                         }
                     }
                 }
             }
         )
     }
-
-
-    // Preview Functions
-//    @Preview(showBackground = true)
-//    @Composable
-//    fun ConnectScreenPreview() {
-//        Marco_poloTheme {
-//            ConnectScreen(navController = rememberNavController())
-//        }
-//    }
-//
-//    @Preview(showBackground = true)
-//    @Composable
-//    fun MainScreenPreview() {
-//        Marco_poloTheme {
-//            MainScreen(navController = rememberNavController())
-//        }
-//    }
 }
-
-
-
-
-
