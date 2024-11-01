@@ -2,6 +2,10 @@ package com.example.marco_polo
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.os.Bundle
 import android.util.Log
@@ -29,14 +33,23 @@ import com.example.marco_polo.ui.theme.Marco_poloTheme
 import com.example.marco_polo.socket_client.SocketClient
 import com.google.android.gms.location.*
 import androidx.activity.viewModels
+import androidx.compose.ui.graphics.graphicsLayer
+import com.google.android.gms.location.LocationResult
+import java.lang.Math.toDegrees
 
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), SensorEventListener {
+    private lateinit var sensorManager: SensorManager
+    private val accelerometerReading = FloatArray(3)
+    private val magnetometerReading = FloatArray(3)
+    private val rotationMatrix = FloatArray(9)
+    private val orientationAngles = FloatArray(3)
+    private var azimuthAngle by mutableFloatStateOf(0f)
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private val socketClient: SocketClient by viewModels()
-    private var distance by mutableStateOf(0f)
+    private var distance by mutableFloatStateOf(0f)
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
@@ -52,15 +65,57 @@ class MainActivity : ComponentActivity() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         checkLocationPermission()
 
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+
+        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI)
+        sensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_UI)
+
         setContent {
             Marco_poloTheme {
-                AppNavigation()
+                AppNavigation(azimuthAngle)
             }
         }
     }
 
+    override fun onSensorChanged(event: SensorEvent) {
+        when (event.sensor.type) {
+            Sensor.TYPE_ACCELEROMETER -> {
+                System.arraycopy(event.values, 0, accelerometerReading, 0, accelerometerReading.size)
+            }
+            Sensor.TYPE_MAGNETIC_FIELD -> {
+                System.arraycopy(event.values, 0, magnetometerReading, 0, magnetometerReading.size)
+            }
+        }
+
+        val success = SensorManager.getRotationMatrix(rotationMatrix, null, accelerometerReading, magnetometerReading)
+        if (success) {
+            SensorManager.getOrientation(rotationMatrix, orientationAngles)
+            val azimuthInRadians = orientationAngles[0]
+            azimuthAngle = toDegrees(azimuthInRadians.toDouble()).toFloat()
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    override fun onPause() {
+        super.onPause()
+        sensorManager.unregisterListener(this)
+        stopLocationUpdates()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI)
+        sensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_UI)
+        checkLocationPermission()
+    }
+
     @Composable
-    fun AppNavigation() {
+    fun AppNavigation(azimuthAngle: Float) {
         val navController = rememberNavController()
 
         socketClient.connect()
@@ -69,7 +124,7 @@ class MainActivity : ComponentActivity() {
             composable("initial_screen") { InitialScreen(navController) }
             composable("create_screen") { CreateScreen(navController, socketClient) }
             composable("connect_screen") { ConnectScreen(navController, socketClient) }
-            composable("main_screen") { MainScreen(navController, socketClient) }
+            composable("main_screen") { MainScreen(navController, socketClient, azimuthAngle) }
         }
 
         DisposableEffect(Unit) {
@@ -216,7 +271,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun MainScreen(navController: NavHostController, socketClient: SocketClient) {
+    fun MainScreen(navController: NavHostController, socketClient: SocketClient, azimuthAngle: Float) {
         Scaffold(
             topBar = {
                 Box(
@@ -254,7 +309,7 @@ class MainActivity : ComponentActivity() {
                                 .background(Color.White, shape = CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("↑", fontSize = 200.sp, fontWeight = FontWeight.Bold, modifier = Modifier.offset(y = (-50).dp))
+                            Text("↑", fontSize = 200.sp, fontWeight = FontWeight.Bold, modifier = Modifier.graphicsLayer(rotationZ = azimuthAngle))
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
