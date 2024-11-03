@@ -22,21 +22,23 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import com.example.marco_polo.ui.theme.Marco_poloTheme
-import com.example.marco_polo.socket_client.SocketClient
 import com.google.android.gms.location.*
-import androidx.activity.viewModels
+import io.socket.client.IO
+import io.socket.client.Socket
+import org.json.JSONObject
 
+class Geolocation(val lat: Double, val long: Double)
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var socket: Socket
+    //private val serverURL = "https://marco-polo-websocket-server.onrender.com/"
+    private val serverURL = "https://marcopoloserver.rocks/"
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
-    private val socketClient: SocketClient by viewModels()
-    private var distance by mutableStateOf(0f)
+    private var distance by mutableFloatStateOf(0f)
+    private var peerLocation by mutableStateOf(Geolocation(0.0, 0.0))
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
@@ -50,7 +52,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        checkLocationPermission()
+
+        try {
+            socket = IO.socket(serverURL)
+        } catch (e : Exception) {
+            println(e.printStackTrace())
+        }
+
+        socket.connect()
 
         setContent {
             Marco_poloTheme {
@@ -59,22 +68,62 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        socket.disconnect()
+    }
+
     @Composable
     fun AppNavigation() {
-        val navController = rememberNavController()
+        var roomID by remember { mutableStateOf("") }
+        var peersConnected by remember { mutableStateOf(false)}
+        var onCreateScreen by remember {mutableStateOf(false)}
+        var onConnectScreen by remember {mutableStateOf(false)}
 
-        socketClient.connect()
+        //Adding socket event listeners
+        LaunchedEffect(Unit) {
 
-        NavHost(navController = navController, startDestination = "initial_screen") {
-            composable("initial_screen") { InitialScreen(navController) }
-            composable("create_screen") { CreateScreen(navController, socketClient) }
-            composable("connect_screen") { ConnectScreen(navController, socketClient) }
-            composable("main_screen") { MainScreen(navController, socketClient) }
+            // Event listener function when peer connection is established
+            socket.on("peers-connected") { _ ->
+                peersConnected = true
+
+                // Starting the location emittance
+                checkLocationPermission()
+            }
+            socket.on("peer-disconnected") { _ ->
+                peersConnected = false
+
+                // Stopping the location emittance
+                stopLocationUpdates()
+            }
         }
 
+        if (peersConnected){
+            MainScreen(roomID=roomID, updatePeersConnected = {input -> peersConnected = input})
+        } else if(!onConnectScreen && !onCreateScreen){
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Button(onClick = { onCreateScreen = true }) {
+                    Text("Create room")
+                }
+                Button(onClick = { onConnectScreen = true }) {
+                    Text("Connect to room")
+                }
+            }
+        } else if (onConnectScreen){
+            ConnectScreen(back = {onConnectScreen = false})
+        } else {
+            CreateScreen(back = {onCreateScreen = false}, roomID=roomID, updateRoomID = {input -> roomID = input})
+        }
+
+        // Clean up when composable is disposed
         DisposableEffect(Unit) {
             onDispose {
-                socketClient.disconnect()
+
+                //Idempotent function that is being called in case the app is closed but the socket is not disconnected yet
                 stopLocationUpdates()
             }
         }
@@ -96,6 +145,7 @@ class MainActivity : ComponentActivity() {
             .setMinUpdateIntervalMillis(5000L)
             .build()
 
+        // Callback function which is being called upon at the interval of get geolocation
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 val location: Location? = locationResult.lastLocation
@@ -104,15 +154,16 @@ class MainActivity : ComponentActivity() {
                     val lon1 = it.longitude
 
                     // Emit the current location to the peer
-                    socketClient.emitGeolocation(lat1, lon1)
+                    emitGeolocation(lat1, lon1)
 
                     // Use peerLocation from SocketClient as the target coordinates
-                    val lat2 = socketClient.peerLocation.value.lat
-                    val lon2 = socketClient.peerLocation.value.long
+                    val lat2 = peerLocation.lat
+                    val lon2 = peerLocation.long
 
                     // Calculate the distance to the peer's coordinates
                     val calculatedDistance = calculateDistance(lat1, lon1, lat2, lon2)
                     distance = calculatedDistance
+
                 }
             }
         }
@@ -136,23 +187,16 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun InitialScreen(navController: NavHostController) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Button(onClick = { navController.navigate("create_screen") }) {
-                Text("Create room")
-            }
-            Button(onClick = { navController.navigate("connect_screen") }) {
-                Text("Connect to room")
+    fun CreateScreen(back: () -> Unit, roomID : String, updateRoomID : (String) -> Unit) {
+
+        LaunchedEffect(Unit) {
+            socket.on("room-created") { args ->
+                if (args.isNotEmpty()) {
+                    updateRoomID(args[0] as String)
+                }
             }
         }
-    }
 
-    @Composable
-    fun CreateScreen(navController: NavHostController, socketClient: SocketClient) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -160,27 +204,27 @@ class MainActivity : ComponentActivity() {
         ) {
             Text("Find your friend! Initialize a room to get a RoomID.")
 
-            if (socketClient.roomID.value != "") {
-                Text("Room created successfully, your room ID is: ${socketClient.roomID.value}")
-            } else {
-                Button(onClick = { socketClient.initializePeerConnection() }) {
-                    Text("Create room")
+            if (roomID != "") {
+                Text("Room created successfully, your room ID is: $roomID")
+            }
+            Row {
+                Button(onClick = {back()}){
+                    Text("Return")
+                }
+                if (roomID == ""){
+                    Button(onClick = { socket.emit("initialize-peer-connection") }) {
+                        Text("Create room")
+                    }
                 }
             }
 
-            if (socketClient.peerConnected.value) {
-                navController.navigate("main_screen")
+
             }
         }
-    }
 
     @Composable
-    fun ConnectScreen(navController: NavHostController, socketClient: SocketClient) {
+    fun ConnectScreen(back : () -> Unit) {
         var sessionId by remember { mutableStateOf("") }
-
-        if (socketClient.peerConnected.value) {
-            navController.navigate("main_screen")
-        }
 
         Scaffold(content = { padding ->
             Box(
@@ -198,25 +242,37 @@ class MainActivity : ComponentActivity() {
                         singleLine = true,
                         modifier = Modifier.padding(bottom = 20.dp)
                     )
-                    Button(
-                        onClick = {
-                            println("session/room ID is $sessionId")
-                            socketClient.joinPeerConnection(sessionId)
+                    Row {
+                        Button(onClick = {back()}){
+                            Text("Return")
                         }
-                    ) {
-                        Text("Connect")
+                        Button(
+                            onClick = {
+                                socket.emit("join-peer-connection", sessionId)
+                            }
+                        ) {
+                            Text("Connect")
+                        }
                     }
 
-                    if (socketClient.errorMessage.value != "") {
-                        Text(socketClient.errorMessage.value)
-                    }
                 }
             }
         })
     }
 
     @Composable
-    fun MainScreen(navController: NavHostController, socketClient: SocketClient) {
+    fun MainScreen(roomID : String, updatePeersConnected : (Boolean) -> Unit) {
+
+        LaunchedEffect(Unit){
+            socket.on("got-geolocation") { args ->
+                if (args.isNotEmpty()) {
+                    val data = args[0] as JSONObject
+                    val latitude = data.getDouble("latitude")
+                    val longitude = data.getDouble("longitude")
+                    peerLocation = Geolocation(latitude, longitude)
+                }
+            }
+        }
         Scaffold(
             topBar = {
                 Box(
@@ -227,7 +283,7 @@ class MainActivity : ComponentActivity() {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Connected room: ${socketClient.roomID.value}",
+                        text = "Connected room: $roomID",//${socketClient.roomID.value}",
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     )
@@ -272,8 +328,10 @@ class MainActivity : ComponentActivity() {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Button(
-                            onClick = { socketClient.leaveRoom(); navController.navigate("initial_screen") },
-                            modifier = Modifier.wrapContentSize().padding(8.dp)
+                            onClick = { socket.emit("leave-room"); updatePeersConnected(false) },//socketClient.leaveRoom(); navController.navigate("initial_screen") },
+                            modifier = Modifier
+                                .wrapContentSize()
+                                .padding(8.dp)
                         ) {
                             Text("Exit")
                         }
@@ -282,4 +340,13 @@ class MainActivity : ComponentActivity() {
             }
         )
     }
+    fun emitGeolocation(lat: Double, lon: Double) {
+        val locationData = JSONObject().apply {
+            put("latitude", lat)
+            put("longitude", lon)
+        }
+        socket.emit("sent-geolocation", locationData)
+    }
 }
+
+
