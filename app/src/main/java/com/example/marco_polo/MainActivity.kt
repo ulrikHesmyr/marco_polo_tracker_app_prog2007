@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.navigation.NavHostController
 import com.example.marco_polo.ui.theme.Marco_poloTheme
 import com.google.android.gms.location.*
 import io.socket.client.IO
@@ -84,8 +83,11 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(Unit) {
 
             // Event listener function when peer connection is established
-            socket.on("peers-connected") { _ ->
+            socket.on("peers-connected") { args ->
                 peersConnected = true
+                if(args.isNotEmpty()){
+                    roomID = args[0] as String
+                }
 
                 // Starting the location emittance
                 checkLocationPermission()
@@ -99,14 +101,14 @@ class MainActivity : ComponentActivity() {
         }
 
         if (peersConnected){
-            MainScreen(roomID=roomID, updatePeersConnected = {input -> peersConnected = input})
+            MainScreen(roomID=roomID, leaveRoom = {peersConnected = false; onCreateScreen = false; onConnectScreen = false; roomID = ""; stopLocationUpdates()})
         } else if(!onConnectScreen && !onCreateScreen){
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Button(onClick = { onCreateScreen = true }) {
+                Button(onClick = { onCreateScreen = true}) {
                     Text("Create room")
                 }
                 Button(onClick = { onConnectScreen = true }) {
@@ -225,43 +227,51 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun ConnectScreen(back : () -> Unit) {
         var sessionId by remember { mutableStateOf("") }
+        var roomConnectionError by remember {mutableStateOf("")}
 
-        Scaffold(content = { padding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    OutlinedTextField(
-                        value = sessionId,
-                        onValueChange = { sessionId = it },
-                        label = { Text("Enter session ID") },
-                        placeholder = { Text("Enter session ID") },
-                        singleLine = true,
-                        modifier = Modifier.padding(bottom = 20.dp)
-                    )
-                    Row {
-                        Button(onClick = {back()}){
-                            Text("Return")
-                        }
-                        Button(
-                            onClick = {
-                                socket.emit("join-peer-connection", sessionId)
-                            }
-                        ) {
-                            Text("Connect")
-                        }
-                    }
-
+        LaunchedEffect(Unit) {
+            socket.on("error") {args ->
+                if(args.isNotEmpty()){
+                    roomConnectionError = args[0] as String
                 }
             }
-        })
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                OutlinedTextField(
+                    value = sessionId,
+                    onValueChange = { sessionId = it },
+                    label = { Text("Enter session ID") },
+                    placeholder = { Text("Enter session ID") },
+                    singleLine = true,
+                    modifier = Modifier.padding(bottom = 20.dp)
+                )
+                Text(roomConnectionError)
+                Row {
+                    Button(onClick = {back()}){
+                        Text("Return")
+                    }
+                    Button(
+                        onClick = {
+                            socket.emit("join-peer-connection", sessionId)
+                        }
+                    ) {
+                        Text("Connect")
+                    }
+                }
+
+            }
+        }
     }
 
     @Composable
-    fun MainScreen(roomID : String, updatePeersConnected : (Boolean) -> Unit) {
+    fun MainScreen(roomID : String, leaveRoom : () -> Unit) {
 
         LaunchedEffect(Unit){
             socket.on("got-geolocation") { args ->
@@ -283,7 +293,7 @@ class MainActivity : ComponentActivity() {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Connected room: $roomID",//${socketClient.roomID.value}",
+                        text = "Connected room: $roomID",
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     )
@@ -328,7 +338,7 @@ class MainActivity : ComponentActivity() {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Button(
-                            onClick = { socket.emit("leave-room"); updatePeersConnected(false) },//socketClient.leaveRoom(); navController.navigate("initial_screen") },
+                            onClick = { socket.emit("leave-room"); leaveRoom() },
                             modifier = Modifier
                                 .wrapContentSize()
                                 .padding(8.dp)
