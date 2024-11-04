@@ -1,26 +1,19 @@
 package com.example.marco_polo
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.location.Location
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.example.marco_polo.ui.theme.Marco_poloTheme
 import com.google.android.gms.location.*
 import io.socket.client.IO
 import io.socket.client.Socket
-import org.json.JSONObject
-import kotlin.math.*
 
 class Geolocation(val lat: Double, val long: Double)
 
@@ -28,10 +21,11 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     lateinit var socket: Socket
     private val serverURL = "https://marcopoloserver.rocks/"
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var locationCallback: LocationCallback
+    lateinit var fusedLocationClient: FusedLocationProviderClient
+    lateinit var locationCallback: LocationCallback
     var distance by mutableFloatStateOf(0f)
     var peerLocation by mutableStateOf(Geolocation(0.0, 0.0))
+    var myLocation by mutableStateOf(Geolocation(0.0, 0.0))
 
     // Compass variables
     private lateinit var sensorManager: SensorManager
@@ -42,7 +36,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     var bearingToMagneticNorth by mutableStateOf(0f)
     var angleDifference by mutableStateOf(0f)
 
-    private val requestPermissionLauncher =
+    val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
                 startLocationUpdates()
@@ -55,7 +49,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         super.onCreate(savedInstanceState)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        println("Angle between ${calculateBearing(60.806055, 10.674635, 60.806055, 10.668627)}")
+        //println("Angle between ${calculateBearing(60.806055, 10.674635, 60.806055, 10.668627)}")
 
         try {
             socket = IO.socket(serverURL)
@@ -117,95 +111,12 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                 bearingToMagneticNorth = (azimuthInDegrees + 360) % 360
 
                 // Use peerLocation from SocketClient as the target coordinates
-                val targetBearing = calculateBearing(60.806055, 10.674635, 60.806055, 10.668627) // Example target coordinates
+                val targetBearing = calculateBearing(myLocation.lat, myLocation.long, peerLocation.lat, peerLocation.long)
                 angleDifference = ((targetBearing - bearingToMagneticNorth + 360) % 360).toFloat()
                 println("Angle difference: $angleDifference")
             }
         }
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        // Respond to accuracy changes if needed
-    }
-
-    fun checkLocationPermission() {
-        if (ContextCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-        } else {
-            startLocationUpdates()
-        }
-    }
-
-    private fun startLocationUpdates() {
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000L)
-            .setMinUpdateIntervalMillis(5000L)
-            .build()
-
-        // Callback function which is being called upon at the interval of get geolocation
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(locationResult: LocationResult) {
-                val location: Location? = locationResult.lastLocation
-                location?.let {
-                    val lat1 = it.latitude
-                    val lon1 = it.longitude
-
-                    // Emit the current location to the peer
-                    emitGeolocation(lat1, lon1)
-
-                    // Use peerLocation from SocketClient as the target coordinates
-                    val lat2 = peerLocation.lat
-                    val lon2 = peerLocation.long
-
-                    // Calculate the distance to the peer's coordinates
-                    val calculatedDistance = calculateDistance(lat1, lon1, lat2, lon2)
-                    distance = calculatedDistance
-                }
-            }
-        }
-
-        if (ActivityCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, mainLooper)
-        }
-    }
-
-    fun stopLocationUpdates() {
-        fusedLocationClient.removeLocationUpdates(locationCallback)
-    }
-
-    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
-        val results = FloatArray(1)
-        Location.distanceBetween(lat1, lon1, lat2, lon2, results)
-        return results[0]
-    }
-
-    fun emitGeolocation(lat: Double, lon: Double) {
-        val locationData = JSONObject().apply {
-            put("latitude", lat)
-            put("longitude", lon)
-        }
-        socket.emit("sent-geolocation", locationData)
-    }
-
-    private fun calculateBearing(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        // Your existing calculateBearing implementation
-        val lat1Rad = Math.toRadians(lat1)
-        val lon1Rad = Math.toRadians(lon1)
-        val lat2Rad = Math.toRadians(lat2)
-        val lon2Rad = Math.toRadians(lon2)
-
-        val deltaLon = lon2Rad - lon1Rad
-        val y = sin(deltaLon) * cos(lat2Rad)
-        val x = cos(lat1Rad) * sin(lat2Rad) - sin(lat1Rad) * cos(lat2Rad) * cos(deltaLon)
-
-        var bearing = Math.toDegrees(atan2(y, x))
-        bearing = (bearing + 360) % 360
-
-        return bearing
-    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 }
