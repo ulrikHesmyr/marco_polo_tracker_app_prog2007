@@ -16,6 +16,7 @@ import com.google.android.gms.location.*
 import io.socket.client.IO
 import io.socket.client.Socket
 import org.json.JSONObject
+import com.example.marco_polo.compass.calculateBearing
 
 class Geolocation(val lat: Double, val long: Double)
 
@@ -41,6 +42,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        println("Angle between ${calculateBearing(60.806055, 10.674635, 60.806055, 10.668627)}")
 
         try {
             socket = IO.socket(serverURL)
