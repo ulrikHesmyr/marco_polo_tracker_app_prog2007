@@ -23,8 +23,8 @@ fun MainActivity.checkLocationPermission() {
 }
 
 fun MainActivity.startLocationUpdates() {
-    val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000L)
-        .setMinUpdateIntervalMillis(5000L)
+    val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, geolocationUpdateInterval)
+        .setMinUpdateIntervalMillis(geolocationUpdateInterval/2)
         .build()
 
     // Callback function which is being called upon at the interval of get geolocation
@@ -55,6 +55,8 @@ fun MainActivity.startLocationUpdates() {
         ) == PackageManager.PERMISSION_GRANTED
     ) {
         fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, mainLooper)
+    } else {
+        throw Exception("Location permission not granted. Can not request location updates.")
     }
 }
 
