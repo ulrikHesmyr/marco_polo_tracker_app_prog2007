@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import com.example.marco_polo.ui.theme.Marco_poloTheme
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.*
 import io.socket.client.IO
 import io.socket.client.Socket
@@ -20,7 +22,8 @@ class Geolocation(val lat: Double, val long: Double)
 class MainActivity : ComponentActivity(), SensorEventListener {
 
     lateinit var socket: Socket
-    private val serverURL = "https://marcopoloserver.rocks/"
+    private val serverURL = "https://marco-polo-websocket-server.onrender.com/"
+    val geolocationUpdateInterval = 750L
     lateinit var fusedLocationClient: FusedLocationProviderClient
     lateinit var locationCallback: LocationCallback
     var distance by mutableFloatStateOf(0f)
@@ -33,8 +36,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private var magnetometer: Sensor? = null
     private var gravity: FloatArray? = null
     private var geomagnetic: FloatArray? = null
-    var bearingToMagneticNorth by mutableStateOf(0f)
-    var angleDifference by mutableStateOf(0f)
+    private var bearingToMagneticNorth by mutableFloatStateOf(0f)
+    private var angleDifference by mutableFloatStateOf(0f)
 
     val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
@@ -47,22 +50,21 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-
-        //println("Angle between ${calculateBearing(60.806055, 10.674635, 60.806055, 10.668627)}")
-
-        try {
-            socket = IO.socket(serverURL)
-        } catch (e: Exception) {
-            println(e.printStackTrace())
+        if (checkGooglePlayServices()) {
+            // Initialize location services
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+            checkLocationPermission()
         }
 
+        socket = IO.socket(serverURL)
         socket.connect()
 
         // Initialize SensorManager for compass
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+
+        registerListeners()
 
         setContent {
             Marco_poloTheme {
@@ -73,16 +75,34 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        socket.off()
         socket.disconnect()
         stopLocationUpdates()
         sensorManager.unregisterListener(this)
     }
 
+    private fun checkGooglePlayServices(): Boolean {
+        val googleApiAvailability = GoogleApiAvailability.getInstance()
+        val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
+        return if (resultCode != ConnectionResult.SUCCESS) {
+            if (googleApiAvailability.isUserResolvableError(resultCode)) {
+                googleApiAvailability.getErrorDialog(this, resultCode, 9000)?.show()
+            } else {
+                Log.e("GooglePlayServices", "This device is not supported.")
+                finish() // End the activity if services aren't available
+            }
+            false
+        } else {
+            true
+        }
+    }
+
+
+
     override fun onResume() {
         super.onResume()
         // Register compass sensors
-        accelerometer?.also { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
-        magnetometer?.also { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+        registerListeners()
     }
 
     override fun onPause() {
@@ -93,17 +113,23 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null) return
 
+//        val currentTime = System.currentTimeMillis()
+//        if (currentTime - lastUpdateTime < UPDATE_INTERVAL) {
+//            return // Skip this update if within the interval
+//        }
+//        lastUpdateTime = currentTime
+
         when (event.sensor.type) {
             Sensor.TYPE_ACCELEROMETER -> gravity = event.values
             Sensor.TYPE_MAGNETIC_FIELD -> geomagnetic = event.values
         }
 
         if (gravity != null && geomagnetic != null) {
-            val R = FloatArray(9)
-            val I = FloatArray(9)
-            if (SensorManager.getRotationMatrix(R, I, gravity, geomagnetic)) {
+            val rotationMatrix = FloatArray(9)
+            val inclinationMatrix = FloatArray(9)
+            if (SensorManager.getRotationMatrix(rotationMatrix, inclinationMatrix, gravity, geomagnetic)) {
                 val orientation = FloatArray(3)
-                SensorManager.getOrientation(R, orientation)
+                SensorManager.getOrientation(rotationMatrix, orientation)
                 val azimuthInRadians = orientation[0] // azimuth in radians
                 val azimuthInDegrees = Math.toDegrees(azimuthInRadians.toDouble()).toFloat()
 
@@ -113,10 +139,14 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                 // Use peerLocation from SocketClient as the target coordinates
                 val targetBearing = calculateBearing(myLocation.lat, myLocation.long, peerLocation.lat, peerLocation.long)
                 angleDifference = ((targetBearing - bearingToMagneticNorth + 360) % 360).toFloat()
-                println("Angle difference: $angleDifference")
             }
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    private fun registerListeners(){
+        accelerometer?.also { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
+        magnetometer?.also { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
+    }
 }
