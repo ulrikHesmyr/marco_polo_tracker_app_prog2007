@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,8 +79,18 @@ fun MainActivity.MainScreen(roomID : String, leaveRoom : () -> Unit) {
                             .background(Color.White, shape = CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("↑", fontSize = 200.sp, fontWeight = FontWeight.Bold, modifier = Modifier.offset(y = (-50).dp))
+                        // Define the radius for the circular path
+                        val radius = 0.dp
+                        Text("↑", fontSize = 200.sp, fontWeight = FontWeight.Bold, modifier = Modifier
+                                .graphicsLayer {
+                                    // Rotate the text
+                                    rotationZ = angleDifference
+                                    // Translate the text to position it on the circular path
+                                    translationX = radius.toPx() // Move outwards
+                                }
+                        )
                     }
+
 
                     Spacer(modifier = Modifier.height(20.dp))
 
