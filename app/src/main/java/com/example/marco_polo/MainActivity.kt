@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import com.example.marco_polo.ui.theme.Marco_poloTheme
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.*
 import io.socket.client.IO
 import io.socket.client.Socket
@@ -47,8 +49,11 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-
+        if (checkGooglePlayServices()) {
+            // Initialize location services
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+            checkLocationPermission()
+        }
         //println("Angle between ${calculateBearing(60.806055, 10.674635, 60.806055, 10.668627)}")
 
         try {
@@ -68,6 +73,22 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             Marco_poloTheme {
                 LandingScreen()
             }
+        }
+    }
+
+    private fun checkGooglePlayServices(): Boolean {
+        val googleApiAvailability = GoogleApiAvailability.getInstance()
+        val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
+        return if (resultCode != ConnectionResult.SUCCESS) {
+            if (googleApiAvailability.isUserResolvableError(resultCode)) {
+                googleApiAvailability.getErrorDialog(this, resultCode, 9000)?.show()
+            } else {
+                Log.e("GooglePlayServices", "This device is not supported.")
+                finish() // End the activity if services aren't available
+            }
+            false
+        } else {
+            true
         }
     }
 
