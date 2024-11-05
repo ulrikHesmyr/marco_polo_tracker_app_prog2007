@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private var gravity: FloatArray? = null
     private var geomagnetic: FloatArray? = null
     private var bearingToMagneticNorth by mutableFloatStateOf(0f)
-    private var angleDifference by mutableFloatStateOf(0f)
+    var angleDifference by mutableFloatStateOf(0f)
 
     val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
