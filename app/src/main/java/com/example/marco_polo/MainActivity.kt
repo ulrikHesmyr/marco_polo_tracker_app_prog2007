@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     lateinit var socket: Socket
     private val serverURL = "https://marco-polo-websocket-server.onrender.com/"
-    val geolocationUpdateInterval = 750L
+    val geolocationUpdateInterval = 100L
     lateinit var fusedLocationClient: FusedLocationProviderClient
     lateinit var locationCallback: LocationCallback
     var distance by mutableFloatStateOf(0f)
@@ -146,7 +146,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private fun registerListeners(){
-        accelerometer?.also { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
-        magnetometer?.also { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
+        accelerometer?.also { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+        magnetometer?.also { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
     }
 }
