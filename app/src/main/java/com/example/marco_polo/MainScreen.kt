@@ -82,19 +82,8 @@ fun MainActivity.MainScreen(roomID : String, leaveRoom : () -> Unit) {
                             .background(Color.White, shape = CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Define the radius for the circular path
-//                        val radius = 0.dp
-//                        Text("↑", fontSize = 200.sp, fontWeight = FontWeight.Bold, modifier = Modifier
-//                                .graphicsLayer {
-//                                    // Rotate the text
-//                                    rotationZ = angleDifference
-//                                    // Translate the text to position it on the circular path
-//                                    translationX = radius.toPx() // Move outwards
-//                                }
-//                        )
                         Image(painter = painterResource(id = R.drawable.arrow_image), contentDescription = "Arrow to point direction", modifier = Modifier.graphicsLayer(rotationZ = angleDifference))
                     }
-
 
                     Spacer(modifier = Modifier.height(20.dp))
 
