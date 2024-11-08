@@ -1,5 +1,6 @@
 package com.example.marco_polo
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,6 +37,7 @@ fun MainActivity.MainScreen(roomID : String, leaveRoom : () -> Unit) {
     LaunchedEffect(Unit){
         socket.on("got-geolocation") { args ->
             if (args.isNotEmpty()) {
+
                 val data = args[0] as JSONObject
                 val latitude = data.getDouble("latitude")
                 val longitude = data.getDouble("longitude")
@@ -79,18 +82,8 @@ fun MainActivity.MainScreen(roomID : String, leaveRoom : () -> Unit) {
                             .background(Color.White, shape = CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Define the radius for the circular path
-                        val radius = 0.dp
-                        Text("↑", fontSize = 200.sp, fontWeight = FontWeight.Bold, modifier = Modifier
-                                .graphicsLayer {
-                                    // Rotate the text
-                                    rotationZ = angleDifference
-                                    // Translate the text to position it on the circular path
-                                    translationX = radius.toPx() // Move outwards
-                                }
-                        )
+                        Image(painter = painterResource(id = R.drawable.arrow_image), contentDescription = "Arrow to point direction", modifier = Modifier.graphicsLayer(rotationZ = angleDifference))
                     }
-
 
                     Spacer(modifier = Modifier.height(20.dp))
 
