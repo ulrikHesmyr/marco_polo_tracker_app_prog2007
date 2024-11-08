@@ -22,7 +22,7 @@ class Geolocation(val lat: Double, val long: Double)
 class MainActivity : ComponentActivity(), SensorEventListener {
 
     lateinit var socket: Socket
-    private val serverURL = "http://129.241.150.223/"
+    private val serverURL = "http://www.marcopoloserver.rocks/"
     val geolocationUpdateInterval = 100L
     lateinit var fusedLocationClient: FusedLocationProviderClient
     lateinit var locationCallback: LocationCallback
