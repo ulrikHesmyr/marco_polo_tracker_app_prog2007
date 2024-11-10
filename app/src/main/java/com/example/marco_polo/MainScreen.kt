@@ -109,6 +109,7 @@ fun MainActivity.MainScreen(roomID: String, leaveRoom: () -> Unit) {
                         Text(
                             "${distance.toInt()} meters",
                             fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimary
                         )
 

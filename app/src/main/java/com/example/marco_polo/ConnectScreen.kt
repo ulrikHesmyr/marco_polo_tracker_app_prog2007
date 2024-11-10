@@ -22,12 +22,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun MainActivity.ConnectScreen(back: () -> Unit) {
     var sessionId by remember { mutableStateOf("") }
     var roomConnectionError by remember { mutableStateOf("") }
 
+    /* Adding a socket event listener for the error event
+    * Wrapped in a non-restartable composable to avoid adding duplicate event listeners
+    * on UI re-renders
+    * */
     LaunchedEffect(Unit) {
         socket.on("error") { args ->
             if (args.isNotEmpty()) {
@@ -43,10 +49,11 @@ fun MainActivity.ConnectScreen(back: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "Enter room ID", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             OutlinedTextField(
                 value = sessionId,
                 onValueChange = { sessionId = it },
-                placeholder = { Text("Enter RoomID", color = MaterialTheme.colorScheme.onSecondary) },
+                placeholder = { Text("Enter room ID", color = MaterialTheme.colorScheme.onSecondary) },
                 singleLine = true,
                 modifier = Modifier
                     .padding(bottom = 20.dp),
