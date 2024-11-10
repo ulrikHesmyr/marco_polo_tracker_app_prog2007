@@ -3,9 +3,12 @@ package com.example.marco_polo
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,16 +20,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 @Composable
-fun MainActivity.ConnectScreen(back : () -> Unit) {
+fun MainActivity.ConnectScreen(back: () -> Unit) {
     var sessionId by remember { mutableStateOf("") }
     var roomConnectionError by remember { mutableStateOf("") }
 
+    /* Adding a socket event listener for the error event
+    * Wrapped in a non-restartable composable to avoid adding duplicate event listeners
+    * on UI re-renders
+    * */
     LaunchedEffect(Unit) {
-        socket.on("error") {args ->
-            if(args.isNotEmpty()){
+        socket.on("error") { args ->
+            if (args.isNotEmpty()) {
                 roomConnectionError = args[0] as String
             }
         }
@@ -39,28 +49,48 @@ fun MainActivity.ConnectScreen(back : () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "Enter room ID", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             OutlinedTextField(
                 value = sessionId,
                 onValueChange = { sessionId = it },
-                label = { Text("Enter session ID") },
-                placeholder = { Text("Enter session ID") },
+                placeholder = { Text("Enter room ID", color = MaterialTheme.colorScheme.onSecondary) },
                 singleLine = true,
-                modifier = Modifier.padding(bottom = 20.dp)
+                modifier = Modifier
+                    .padding(bottom = 20.dp),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                )
             )
-            Text(roomConnectionError)
+            Text(
+                text = roomConnectionError,
+                color = MaterialTheme.colorScheme.onPrimary,
+                style = MaterialTheme.typography.bodyMedium
+            )
             Row {
-                Button(onClick = {back()}){
-                    Text("Return")
+                Button(
+                    onClick = { back() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Text("Return", color = MaterialTheme.colorScheme.onPrimary)
                 }
+                Spacer(modifier = Modifier.width(10.dp))
                 Button(
                     onClick = {
                         socket.emit("join-peer-connection", sessionId)
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
                 ) {
-                    Text("Connect")
+                    Text("Connect", color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
-
         }
     }
 }
