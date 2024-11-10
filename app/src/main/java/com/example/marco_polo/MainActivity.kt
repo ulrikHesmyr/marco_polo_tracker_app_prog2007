@@ -10,7 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
-import com.example.marco_polo.ui.theme.Marco_poloTheme
+import com.example.marco_polo.ui.theme.MarcoPoloTheme
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.*
@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         registerListeners()
 
         setContent {
-            Marco_poloTheme {
+            MarcoPoloTheme {
                 LandingScreen()
             }
         }
@@ -112,12 +112,6 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null) return
-
-//        val currentTime = System.currentTimeMillis()
-//        if (currentTime - lastUpdateTime < UPDATE_INTERVAL) {
-//            return // Skip this update if within the interval
-//        }
-//        lastUpdateTime = currentTime
 
         when (event.sensor.type) {
             Sensor.TYPE_ACCELEROMETER -> gravity = event.values
