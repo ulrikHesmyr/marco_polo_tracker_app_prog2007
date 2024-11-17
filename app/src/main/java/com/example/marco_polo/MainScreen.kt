@@ -32,23 +32,35 @@ import org.json.JSONObject
 import androidx.compose.material3.ButtonDefaults
 import com.example.marco_polo.ui.theme.MarcoPoloTheme
 
+/**
+ * Displays the main screen of the Marco Polo app with geolocation and peer direction.
+ *
+ * @param roomID The ID of the room the user is connected to.
+ * @param leaveRoom A callback function triggered when the user exits the room.
+ */
 @Composable
 fun MainActivity.MainScreen(roomID: String, leaveRoom: () -> Unit) {
 
+    // Establish a socket listener for receiving geolocation data
     LaunchedEffect(Unit) {
         socket.on("got-geolocation") { args ->
             if (args.isNotEmpty()) {
-
                 val data = args[0] as JSONObject
                 val latitude = data.getDouble("latitude")
                 val longitude = data.getDouble("longitude")
-                peerLocation = Geolocation(latitude, longitude)
+                peerLocation = Geolocation(latitude, longitude) // Update peer location
             }
         }
     }
 
-    MarcoPoloTheme (dynamicColor = false) {
+    /**
+     * Applies the Marco Polo app theme and sets up the screen layout.
+     */
+    MarcoPoloTheme(dynamicColor = false) {
         Scaffold(
+            /**
+             * The top bar showing the connected room's ID.
+             */
             topBar = {
                 Box(
                     modifier = Modifier
@@ -65,6 +77,11 @@ fun MainActivity.MainScreen(roomID: String, leaveRoom: () -> Unit) {
                     )
                 }
             },
+            /**
+             * The main content of the screen, including direction and distance information.
+             *
+             * @param padding The padding applied to the content area.
+             */
             content = { padding ->
                 Box(
                     modifier = Modifier
@@ -85,6 +102,9 @@ fun MainActivity.MainScreen(roomID: String, leaveRoom: () -> Unit) {
                             color = MaterialTheme.colorScheme.onPrimary
                         )
 
+                        /**
+                         * Displays an arrow pointing towards the peer's direction.
+                         */
                         Box(
                             modifier = Modifier
                                 .size(200.dp)
@@ -100,6 +120,9 @@ fun MainActivity.MainScreen(roomID: String, leaveRoom: () -> Unit) {
 
                         Spacer(modifier = Modifier.height(20.dp))
 
+                        /**
+                         * Displays the distance to the peer in meters.
+                         */
                         Text(
                             "Distance:",
                             fontSize = 25.sp,
@@ -116,6 +139,9 @@ fun MainActivity.MainScreen(roomID: String, leaveRoom: () -> Unit) {
                         Spacer(modifier = Modifier.height(20.dp))
                     }
 
+                    /**
+                     * Displays a button to leave the room.
+                     */
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

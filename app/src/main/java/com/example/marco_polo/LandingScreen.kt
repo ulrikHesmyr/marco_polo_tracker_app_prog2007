@@ -26,92 +26,124 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.marco_polo.ui.theme.MarcoPoloTheme
 
+/**
+ * Composable function for the landing screen of the Marco Polo app.
+ *
+ * This screen manages the main navigation logic and user interactions for creating
+ * or connecting to a room, as well as handling peer connections.
+ */
 @Composable
 fun MainActivity.LandingScreen() {
-    var roomID by remember { mutableStateOf("") }
-    var peersConnected by remember { mutableStateOf(false) }
-    var onCreateScreen by remember { mutableStateOf(false) }
-    var onConnectScreen by remember { mutableStateOf(false) }
+    // State variables to track the room ID, peer connections, and screen navigation
+    var roomID by remember { mutableStateOf("") } ///< ID of the connected room.
+    var peersConnected by remember { mutableStateOf(false) } ///< Indicates if peers are connected.
+    var onCreateScreen by remember { mutableStateOf(false) } ///< Flag for the create room screen.
+    var onConnectScreen by remember { mutableStateOf(false) } ///< Flag for the connect room screen.
 
-    //Adding socket event listeners
+    /**
+     * Adds socket event listeners for peer connection and disconnection.
+     */
     LaunchedEffect(Unit) {
-
-        // Event listener function when peer connection is established
         socket.on("peers-connected") { args ->
             peersConnected = true
-            if(args.isNotEmpty()){
+            if (args.isNotEmpty()) {
                 roomID = args[0] as String
             }
 
-            // Starting the location emittance
+            // Start emitting location updates
             checkLocationPermission()
         }
+
         socket.on("peer-disconnected") { _ ->
             peersConnected = false
 
-            // Stopping the location emittance
+            // Stop emitting location updates
             stopLocationUpdates()
         }
     }
 
-    MarcoPoloTheme (dynamicColor = false) {
-        Surface(modifier = Modifier.fillMaxHeight(),
-                color = MaterialTheme.colorScheme.background) {
-            if (peersConnected) {
-                MainScreen(roomID=roomID, leaveRoom = {
-                    peersConnected = false
-                    onCreateScreen = false
-                    onConnectScreen = false
-                    roomID = ""
-                    stopLocationUpdates()
-                })
-            } else if (!onConnectScreen && !onCreateScreen) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "Marco Polo",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 50.sp,
-                        color = MaterialTheme.colorScheme.onPrimary
+    /**
+     * Applies the app theme and manages the UI structure.
+     */
+    MarcoPoloTheme(dynamicColor = false) {
+        Surface(
+            modifier = Modifier.fillMaxHeight(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            when {
+                peersConnected -> {
+                    // Main screen displayed when peers are connected
+                    MainScreen(
+                        roomID = roomID,
+                        leaveRoom = {
+                            peersConnected = false
+                            onCreateScreen = false
+                            onConnectScreen = false
+                            roomID = ""
+                            stopLocationUpdates()
+                        }
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    HorizontalDivider(
-                        modifier = Modifier
-                            .padding(horizontal = 25.dp)
-                            .fillMaxWidth(),
-                        thickness = 3.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = { onCreateScreen = true },
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary
-                        )
+                }
+                !onConnectScreen && !onCreateScreen -> {
+                    // Default landing page for creating or connecting to a room
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Create room", color = MaterialTheme.colorScheme.onPrimary)
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = { onConnectScreen = true },
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary
+                        Text(
+                            text = "Marco Polo",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 50.sp,
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
-                    ) {
-                        Text("Connect to room", color = MaterialTheme.colorScheme.onPrimary)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        HorizontalDivider(
+                            modifier = Modifier
+                                .padding(horizontal = 25.dp)
+                                .fillMaxWidth(),
+                            thickness = 3.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = { onCreateScreen = true },
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary
+                            )
+                        ) {
+                            Text("Create room", color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = { onConnectScreen = true },
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary
+                            )
+                        ) {
+                            Text("Connect to room", color = MaterialTheme.colorScheme.onPrimary)
+                        }
                     }
                 }
-            } else if (onConnectScreen) {
-                ConnectScreen(back = { onConnectScreen = false })
-            } else {
-                CreateScreen(back = { onCreateScreen = false }, roomID = roomID, updateRoomID = { input -> roomID = input })
+                onConnectScreen -> {
+                    // Connect screen for joining a room
+                    ConnectScreen(back = { onConnectScreen = false })
+                }
+                else -> {
+                    // Create screen for creating a new room
+                    CreateScreen(
+                        back = { onCreateScreen = false },
+                        roomID = roomID,
+                        updateRoomID = { input -> roomID = input }
+                    )
+                }
             }
         }
     }
 
+    /**
+     * Stops location updates when the composable is disposed.
+     */
     DisposableEffect(Unit) {
         onDispose {
             stopLocationUpdates()

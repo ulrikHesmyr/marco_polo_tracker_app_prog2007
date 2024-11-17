@@ -25,15 +25,26 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+/**
+ * Composable function for the "Connect to Room" screen.
+ *
+ * This screen allows users to input a room ID to connect to an existing room.
+ * It handles errors if the connection fails and provides navigation back to the previous screen.
+ *
+ * @param back A callback function triggered when the "Return" button is pressed.
+ */
 @Composable
 fun MainActivity.ConnectScreen(back: () -> Unit) {
-    var sessionId by remember { mutableStateOf("") }
-    var roomConnectionError by remember { mutableStateOf("") }
+    // State variables for session ID input and connection error messages
+    var sessionId by remember { mutableStateOf("") } ///< Room ID entered by the user.
+    var roomConnectionError by remember { mutableStateOf("") } ///< Error message for connection failures.
 
-    /* Adding a socket event listener for the error event
-    * Wrapped in a non-restartable composable to avoid adding duplicate event listeners
-    * on UI re-renders
-    * */
+    /**
+     * Adds a socket event listener for the "error" event.
+     *
+     * Updates the error message state when the server emits an "error" event.
+     * Wrapped in a `LaunchedEffect` to prevent duplicate event listeners on re-renders.
+     */
     LaunchedEffect(Unit) {
         socket.on("error") { args ->
             if (args.isNotEmpty()) {
@@ -42,6 +53,9 @@ fun MainActivity.ConnectScreen(back: () -> Unit) {
         }
     }
 
+    /**
+     * Main UI layout for the "Connect to Room" screen.
+     */
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -49,7 +63,10 @@ fun MainActivity.ConnectScreen(back: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Prompt to enter room ID
             Text(text = "Enter room ID", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+
+            // Input field for room ID
             OutlinedTextField(
                 value = sessionId,
                 onValueChange = { sessionId = it },
@@ -65,14 +82,18 @@ fun MainActivity.ConnectScreen(back: () -> Unit) {
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
+
+            // Display error message if connection fails
             Text(
                 text = roomConnectionError,
                 color = MaterialTheme.colorScheme.onPrimary,
                 style = MaterialTheme.typography.bodyMedium
             )
+
+            // Buttons for navigation and connecting to a room
             Row {
                 Button(
-                    onClick = { back() },
+                    onClick = { back() }, // Navigate back to the previous screen
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary
                     )
@@ -82,7 +103,7 @@ fun MainActivity.ConnectScreen(back: () -> Unit) {
                 Spacer(modifier = Modifier.width(10.dp))
                 Button(
                     onClick = {
-                        socket.emit("join-peer-connection", sessionId)
+                        socket.emit("join-peer-connection", sessionId) // Emit event to join the room
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary

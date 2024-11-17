@@ -21,9 +21,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/**
+ * Composable function for the "Create Room" screen.
+ *
+ * This screen allows users to create a new room and displays the generated room ID once the room is created.
+ *
+ * @param back A callback function triggered when the "Return" button is pressed.
+ * @param roomID The ID of the room if it has been created, otherwise an empty string.
+ * @param updateRoomID A callback function to update the room ID when it is received from the server.
+ */
 @Composable
-fun MainActivity.CreateScreen(back: () -> Unit, roomID : String, updateRoomID : (String) -> Unit) {
+fun MainActivity.CreateScreen(back: () -> Unit, roomID: String, updateRoomID: (String) -> Unit) {
 
+    /**
+     * Adds a socket listener for the "room-created" event.
+     *
+     * This listener updates the room ID when the server emits the "room-created" event.
+     */
     LaunchedEffect(Unit) {
         socket.on("room-created") { args ->
             if (args.isNotEmpty()) {
@@ -32,6 +46,9 @@ fun MainActivity.CreateScreen(back: () -> Unit, roomID : String, updateRoomID : 
         }
     }
 
+    /**
+     * Main UI layout for the "Create Room" screen.
+     */
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -39,6 +56,7 @@ fun MainActivity.CreateScreen(back: () -> Unit, roomID : String, updateRoomID : 
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // Display the room ID if it exists, otherwise show instructions
         if (roomID != "") {
             Text(
                 text = "Room created successfully, your room ID is:",
@@ -63,9 +81,11 @@ fun MainActivity.CreateScreen(back: () -> Unit, roomID : String, updateRoomID : 
             )
         }
         Spacer(modifier = Modifier.height(20.dp))
+
+        // Buttons for navigation and creating a room
         Row {
             Button(
-                onClick = { back() },
+                onClick = { back() }, // Navigate back to the previous screen
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.secondary
                 )
@@ -75,7 +95,7 @@ fun MainActivity.CreateScreen(back: () -> Unit, roomID : String, updateRoomID : 
             Spacer(modifier = Modifier.width(10.dp))
             if (roomID == "") {
                 Button(
-                    onClick = { socket.emit("initialize-peer-connection") },
+                    onClick = { socket.emit("initialize-peer-connection") }, // Emit event to initialize a room
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary
                     )
