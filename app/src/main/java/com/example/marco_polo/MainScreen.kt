@@ -33,9 +33,11 @@ import androidx.compose.material3.ButtonDefaults
 import com.example.marco_polo.ui.theme.MarcoPoloTheme
 
 /**
- * Displays the main screen of the Marco Polo app with geolocation and peer direction.
+ * Displays the main screen of the Marco Polo app with distance and direction to peer. The screen
+ * is visible only when the user is connected to a room where there is another user that
+ * is connected.
  *
- * @param roomID The ID of the room the user is connected to.
+ * @param roomID The ID of the peer connection room the user is connected to.
  * @param leaveRoom A callback function triggered when the user exits the room.
  */
 @Composable
@@ -44,23 +46,22 @@ fun MainActivity.MainScreen(roomID: String, leaveRoom: () -> Unit) {
     // Establish a socket listener for receiving geolocation data
     LaunchedEffect(Unit) {
         socket.on("got-geolocation") { args ->
+
+            // Parses the JSON data received by the peer and updates the peerLocation data member
             if (args.isNotEmpty()) {
                 val data = args[0] as JSONObject
                 val latitude = data.getDouble("latitude")
                 val longitude = data.getDouble("longitude")
-                peerLocation = Geolocation(latitude, longitude) // Update peer location
+                peerLocation = Geolocation(latitude, longitude)
             }
         }
     }
 
-    /**
-     * Applies the Marco Polo app theme and sets up the screen layout.
-     */
+    // Applies the Marco Polo app theme and sets up the screen layout.
     MarcoPoloTheme(dynamicColor = false) {
         Scaffold(
-            /**
-             * The top bar showing the connected room's ID.
-             */
+
+            // The top bar showing the connected room's ID.
             topBar = {
                 Box(
                     modifier = Modifier
@@ -77,12 +78,11 @@ fun MainActivity.MainScreen(roomID: String, leaveRoom: () -> Unit) {
                     )
                 }
             },
-            /**
-             * The main content of the screen, including direction and distance information.
-             *
-             * @param padding The padding applied to the content area.
-             */
+
+            // The main content of the screen, including direction and distance information.
             content = { padding ->
+
+
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -95,53 +95,62 @@ fun MainActivity.MainScreen(roomID: String, leaveRoom: () -> Unit) {
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier.fillMaxHeight(0.8f)
                     ) {
-                        Text(
-                            "Direction to peer",
-                            fontSize = 25.sp,
-                            modifier = Modifier.padding(10.dp),
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
 
                         /**
-                         * Displays an arrow pointing towards the peer's direction.
+                         * Displays the direction and distance to peer geolocation
+                         * if the user has permitted location access to the app
                          */
-                        Box(
-                            modifier = Modifier
-                                .size(200.dp)
-                                .background(MaterialTheme.colorScheme.surface, shape = CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.arrow_image),
-                                contentDescription = "Arrow to point direction",
-                                modifier = Modifier.graphicsLayer(rotationZ = angleDifference)
+                        if(!permittedLocation){
+                            Text(
+                                "The app requires to access your location, please grant access in settings",
+                                fontSize = 25.sp,
+                                modifier = Modifier.padding(10.dp),
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
+                        } else {
+                            Text(
+                                "Direction to peer",
+                                fontSize = 25.sp,
+                                modifier = Modifier.padding(10.dp),
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+
+                            // Displays an arrow pointing towards the peer's direction.
+                            Box(
+                                modifier = Modifier
+                                    .size(200.dp)
+                                    .background(MaterialTheme.colorScheme.surface, shape = CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.arrow_image),
+                                    contentDescription = "Arrow to point direction",
+                                    modifier = Modifier.graphicsLayer(rotationZ = angleDifference)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // Displays the distance to the peer in meters.
+                            Text(
+                                "Distance:",
+                                fontSize = 25.sp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+
+                            Text(
+                                "${distance.toInt()} meters",
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+
+                            Spacer(modifier = Modifier.height(20.dp))
                         }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        /**
-                         * Displays the distance to the peer in meters.
-                         */
-                        Text(
-                            "Distance:",
-                            fontSize = 25.sp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-
-                        Text(
-                            "${distance.toInt()} meters",
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
                     }
 
-                    /**
-                     * Displays a button to leave the room.
-                     */
+
+                    // Displays a button to leave the room.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -162,6 +171,8 @@ fun MainActivity.MainScreen(roomID: String, leaveRoom: () -> Unit) {
                         }
                     }
                 }
+
+
             }
         )
     }

@@ -28,22 +28,25 @@ import androidx.compose.ui.unit.sp
 /**
  * Composable function for the "Connect to Room" screen.
  *
- * This screen allows users to input a room ID to connect to an existing room.
- * It handles errors if the connection fails and provides navigation back to the previous screen.
+ * This screen allows users to input a room ID to connect to an existing peer connection room.
+ * It display an error message if the connection fails in addition to providing navigation back to
+ * the landing screen.
  *
  * @param back A callback function triggered when the "Return" button is pressed.
  */
 @Composable
 fun MainActivity.ConnectScreen(back: () -> Unit) {
-    // State variables for session ID input and connection error messages
-    var sessionId by remember { mutableStateOf("") } ///< Room ID entered by the user.
-    var roomConnectionError by remember { mutableStateOf("") } ///< Error message for connection failures.
+    // State variables for session ID input and the connection error message
+    var sessionId by remember { mutableStateOf("") }
+    var roomConnectionError by remember { mutableStateOf("") }
 
     /**
-     * Adds a socket event listener for the "error" event.
+     * Adds a socket event listener for the "error" event which indicates that the peer connection
+     * room either do not exist or is full. Due to information disclosure, we do not have a distinct
+     * error message for either of those, but rather a general error message.
      *
-     * Updates the error message state when the server emits an "error" event.
-     * Wrapped in a `LaunchedEffect` to prevent duplicate event listeners on re-renders.
+     * The socket event listener callback updates the error message to display to the user
+     * Wrapped in a `LaunchedEffect` composable to prevent duplicate event listeners on re-renders.
      */
     LaunchedEffect(Unit) {
         socket.on("error") { args ->
@@ -93,7 +96,8 @@ fun MainActivity.ConnectScreen(back: () -> Unit) {
             // Buttons for navigation and connecting to a room
             Row {
                 Button(
-                    onClick = { back() }, // Navigate back to the previous screen
+                    // Onclick event listener to go back to the landing screen
+                    onClick = { back() },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary
                     )
@@ -103,7 +107,8 @@ fun MainActivity.ConnectScreen(back: () -> Unit) {
                 Spacer(modifier = Modifier.width(10.dp))
                 Button(
                     onClick = {
-                        socket.emit("join-peer-connection", sessionId) // Emit event to join the room
+                        // Emit event to request joining a peer connection room
+                        socket.emit("join-peer-connection", sessionId)
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary

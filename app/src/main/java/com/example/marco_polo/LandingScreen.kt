@@ -35,15 +35,32 @@ import com.example.marco_polo.ui.theme.MarcoPoloTheme
 @Composable
 fun MainActivity.LandingScreen() {
     // State variables to track the room ID, peer connections, and screen navigation
-    var roomID by remember { mutableStateOf("") } ///< ID of the connected room.
-    var peersConnected by remember { mutableStateOf(false) } ///< Indicates if peers are connected.
-    var onCreateScreen by remember { mutableStateOf(false) } ///< Flag for the create room screen.
-    var onConnectScreen by remember { mutableStateOf(false) } ///< Flag for the connect room screen.
+    var roomID by remember { mutableStateOf("") }
+    var peersConnected by remember { mutableStateOf(false) }
+    var onCreateScreen by remember { mutableStateOf(false) }
+    var onConnectScreen by remember { mutableStateOf(false) }
 
     /**
-     * Adds socket event listeners for peer connection and disconnection.
+     * Adds a socket event listener for the "peers-connected" event which indicates that the
+     * peer connection is successfully established.
+     *
+     * Adds a socket event listener for the "peers-disconnected" event which indicates the the peer
+     * has either left the room, lost connection or closed the app.
+     *
+     * Wrapped in a `LaunchedEffect` composable to prevent duplicate event listeners on re-renders.
      */
     LaunchedEffect(Unit) {
+
+        /**
+         * The socket event listener callback updates the room ID and set the peersConnected flag so
+         * that the user is navigated to the main screen.
+         *
+         * When the peer connection is established, we also want to start emitting the geolocation of
+         * the device and therefore start the geolocation emitting procedure which firstly need to check
+         * the permissions.
+         *
+         * @see checkLocationPermission
+         */
         socket.on("peers-connected") { args ->
             peersConnected = true
             if (args.isNotEmpty()) {
@@ -54,6 +71,15 @@ fun MainActivity.LandingScreen() {
             checkLocationPermission()
         }
 
+        /**
+         * The socket event listener callback of the "peer-disconnected" event updates the
+         * peersConnected flag so that the user is navigated back to the previous screen
+         * (either the connect or the create room screen).
+         *
+         * Stops the geolocation emittance to the peer due to disconnection
+         *
+         * @see stopLocationUpdates
+         */
         socket.on("peer-disconnected") { _ ->
             peersConnected = false
 
@@ -126,11 +152,11 @@ fun MainActivity.LandingScreen() {
                     }
                 }
                 onConnectScreen -> {
-                    // Connect screen for joining a room
+                    // Connect screen for joining a room with a callback function to navigate back
                     ConnectScreen(back = { onConnectScreen = false })
                 }
                 else -> {
-                    // Create screen for creating a new room
+                    // Create screen for creating a new room with callback functions
                     CreateScreen(
                         back = { onCreateScreen = false },
                         roomID = roomID,
