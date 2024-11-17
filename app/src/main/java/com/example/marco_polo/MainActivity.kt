@@ -9,13 +9,13 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import com.example.marco_polo.ui.theme.MarcoPoloTheme
-import com.google.android.gms.common.ConnectionResult
-import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.*
 import io.socket.client.IO
 import io.socket.client.Socket
+
 
 /**
  * Data class representing geographical coordinates.
@@ -33,47 +33,50 @@ class Geolocation(val lat: Double, val long: Double)
 class MainActivity : ComponentActivity(), SensorEventListener {
 
     lateinit var socket: Socket ///< Socket instance for server communication.
-    private val serverURL = "http://www.marcopoloserver.rocks/" ///< Server URL for socket connection.
+    private val serverURL = "http://www.marcopoloserver.rocks/" ///< Server URL for peer connection connection.
+
     val geolocationUpdateInterval = 100L ///< Interval for geolocation updates in milliseconds.
     lateinit var fusedLocationClient: FusedLocationProviderClient ///< Client for location updates.
     lateinit var locationCallback: LocationCallback ///< Callback for location updates.
     var distance by mutableFloatStateOf(0f) ///< Distance to the peer location.
     var peerLocation by mutableStateOf(Geolocation(0.0, 0.0)) ///< Current peer's location.
     var myLocation by mutableStateOf(Geolocation(0.0, 0.0)) ///< Current user's location.
+    var permittedLocation by mutableStateOf(true);
 
     // Compass variables
     private lateinit var sensorManager: SensorManager ///< Manages device sensors.
     private var accelerometer: Sensor? = null ///< Accelerometer sensor.
     private var magnetometer: Sensor? = null ///< Magnetometer sensor.
-    private var gravity: FloatArray? = null ///< Gravity data from accelerometer.
-    private var geomagnetic: FloatArray? = null ///< Geomagnetic data from magnetometer.
-    private var bearingToMagneticNorth by mutableFloatStateOf(0f) ///< Bearing to magnetic north.
+    var gravity: FloatArray? = null ///< Gravity data from accelerometer.
+    var geomagnetic: FloatArray? = null ///< Geomagnetic data from magnetometer.
+    var bearingToMagneticNorth by mutableFloatStateOf(0f) ///< Bearing to magnetic north.
     var angleDifference by mutableFloatStateOf(0f) ///< Angle difference to peer's direction.
 
-    /**
-     * Registers a permission launcher for location access.
-     */
+    // Registers a permission launcher for location access.
     val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
-            if (isGranted) {
-                startLocationUpdates()
+
+            if (!isGranted) {
+                permittedLocation = false;
             } else {
-                Log.e("Permission", "Location permission denied by user")
+                permittedLocation = true;
             }
         }
 
     /**
-     * Called when the activity is created.
-     *
-     * Initializes location services, compass sensors, and socket communication.
+     * Function which is called when activity is created. The function initializes the location API
+     * client (if google play services is available on the device). In addition it initializes the
+     * websocket connection, compass sensor manager and the UI.
      *
      * @param savedInstanceState The saved state of the activity.
+     * @see checkGooglePlayServices
+     * @see registerListeners
+     * @see LandingScreen
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (checkGooglePlayServices()) {
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-            checkLocationPermission()
         }
 
         socket = IO.socket(serverURL)
@@ -95,7 +98,9 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     /**
      * Called when the activity is destroyed.
      *
-     * Cleans up resources such as sockets, location updates, and sensor listeners.
+     * Cleans up resources by removing socket event listeners, stop location updates, and
+     * unregister sensor listeners.
+     * @see stopLocationUpdates
      */
     override fun onDestroy() {
         super.onDestroy()
@@ -106,30 +111,10 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 
     /**
-     * Checks if Google Play Services are available.
-     *
-     * @return True if services are available, otherwise false.
-     */
-    private fun checkGooglePlayServices(): Boolean {
-        val googleApiAvailability = GoogleApiAvailability.getInstance()
-        val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
-        return if (resultCode != ConnectionResult.SUCCESS) {
-            if (googleApiAvailability.isUserResolvableError(resultCode)) {
-                googleApiAvailability.getErrorDialog(this, resultCode, 9000)?.show()
-            } else {
-                Log.e("GooglePlayServices", "This device is not supported.")
-                finish()
-            }
-            false
-        } else {
-            true
-        }
-    }
-
-    /**
      * Called when the activity is resumed.
      *
      * Re-registers compass sensors.
+     * @see registerListeners
      */
     override fun onResume() {
         super.onResume()
@@ -147,42 +132,18 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 
     /**
-     * Handles sensor data changes.
-     *
-     * Updates the angle difference to the peer based on compass and geolocation data.
+     * Handles sensor data changes which will trigger the the function to calculate the angle of
+     * the direction from the device's location with its coherent orientation to the peer's location
      *
      * @param event The sensor event containing new data.
      */
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null) return
-
-        when (event.sensor.type) {
-            Sensor.TYPE_ACCELEROMETER -> gravity = event.values
-            Sensor.TYPE_MAGNETIC_FIELD -> geomagnetic = event.values
-        }
-
-        if (gravity != null && geomagnetic != null) {
-            val rotationMatrix = FloatArray(9)
-            val inclinationMatrix = FloatArray(9)
-            if (SensorManager.getRotationMatrix(rotationMatrix, inclinationMatrix, gravity, geomagnetic)) {
-                val orientation = FloatArray(3)
-                SensorManager.getOrientation(rotationMatrix, orientation)
-                val azimuthInRadians = orientation[0]
-                val azimuthInDegrees = Math.toDegrees(azimuthInRadians.toDouble()).toFloat()
-
-                bearingToMagneticNorth = (azimuthInDegrees + 360) % 360
-
-                val targetBearing = calculateBearing(myLocation.lat, myLocation.long, peerLocation.lat, peerLocation.long)
-                angleDifference = ((targetBearing - bearingToMagneticNorth + 360) % 360).toFloat()
-            }
-        }
+        calculateAngleDirection(event);
     }
 
     /**
-     * Handles changes in sensor accuracy.
-     *
-     * @param sensor The sensor whose accuracy has changed.
-     * @param accuracy The new accuracy of the sensor.
+     * Required dummy function due to abstract SensorEventListener is an abstract class/interface
      */
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 

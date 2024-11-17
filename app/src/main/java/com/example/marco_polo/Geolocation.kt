@@ -3,8 +3,11 @@ package com.example.marco_polo
 import android.Manifest
 import android.content.pm.PackageManager
 import android.location.Location
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -15,6 +18,7 @@ import org.json.JSONObject
  * Checks if location permission is granted and requests it if not.
  *
  * If the permission is already granted, starts location updates.
+ * @see startLocationUpdates
  */
 fun MainActivity.checkLocationPermission() {
     if (ContextCompat.checkSelfPermission(
@@ -31,7 +35,9 @@ fun MainActivity.checkLocationPermission() {
  * Starts location updates using high-accuracy settings.
  *
  * Configures the location request and registers a callback to handle location updates.
- * Throws an exception if location permission is not granted.
+ * Throws an exception if high accuracy location permission is not granted. This can occur
+ * even when the user has granted permission through the permission prompt, but accessing GPS
+ * location is disabled in settings.
  */
 fun MainActivity.startLocationUpdates() {
     val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, geolocationUpdateInterval)
@@ -39,7 +45,11 @@ fun MainActivity.startLocationUpdates() {
         .build()
 
     /**
-     * Callback function invoked when a new location is available.
+     * Callback function invoked when a new location is available which updates the geolocation of
+     * the current user, emits it to the other peer and calculates the distance to the peer.
+     *
+     * @see emitGeolocation
+     * @see calculateDistance
      */
     locationCallback = object : LocationCallback() {
         override fun onLocationResult(locationResult: LocationResult) {
@@ -47,6 +57,7 @@ fun MainActivity.startLocationUpdates() {
             location?.let {
                 val lat1 = it.latitude
                 val lon1 = it.longitude
+
 
                 emitGeolocation(lat1, lon1)
 
@@ -71,7 +82,7 @@ fun MainActivity.startLocationUpdates() {
 }
 
 /**
- * Calculates the distance between two geographical coordinates.
+ * Calculates the distance between the two peer's geographical coordinates.
  *
  * @param lat1 Latitude of the first location.
  * @param lon1 Longitude of the first location.
@@ -86,10 +97,11 @@ fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): F
 }
 
 /**
- * Sends the current geolocation to the peer via a socket.
+ * Constructs a JSON string of the user's geolocation and sends/emits it to the websocket server
+ * which then broadcasts it to the peer's device.
  *
- * @param lat Latitude of the current location.
- * @param lon Longitude of the current location.
+ * @param lat Latitude of the current geolocation.
+ * @param lon Longitude of the current geolocation.
  */
 fun MainActivity.emitGeolocation(lat: Double, lon: Double) {
     val locationData = JSONObject().apply {
@@ -100,8 +112,32 @@ fun MainActivity.emitGeolocation(lat: Double, lon: Double) {
 }
 
 /**
- * Stops location updates to conserve resources.
+ * Idempotent function that stops location updates.
+ *
+ * May be called upon even though location callback is already removed.
  */
 fun MainActivity.stopLocationUpdates() {
     fusedLocationClient.removeLocationUpdates(locationCallback)
+}
+
+/**
+ * Function that checks if Google Play Services are available on the device, which is necessary to
+ * access the device's location.
+ *
+ * @return True if services are available, otherwise false.
+ */
+fun MainActivity.checkGooglePlayServices(): Boolean {
+    val googleApiAvailability = GoogleApiAvailability.getInstance()
+    val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
+    return if (resultCode != ConnectionResult.SUCCESS) {
+        if (googleApiAvailability.isUserResolvableError(resultCode)) {
+            googleApiAvailability.getErrorDialog(this, resultCode, 9000)?.show()
+        } else {
+            Log.e("GooglePlayServices", "This device is not supported.")
+            finish()
+        }
+        false
+    } else {
+        true
+    }
 }

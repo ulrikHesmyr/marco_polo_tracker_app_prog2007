@@ -24,9 +24,11 @@ import androidx.compose.ui.unit.sp
 /**
  * Composable function for the "Create Room" screen.
  *
- * This screen allows users to create a new room and displays the generated room ID once the room is created.
+ * This screen allows users to create a new room and displays the generated room ID once the room
+ * is created.
  *
- * @param back A callback function triggered when the "Return" button is pressed.
+ * @param back A callback function triggered when the "Return" button is pressed to navigate the
+ * user back to the landing screen.
  * @param roomID The ID of the room if it has been created, otherwise an empty string.
  * @param updateRoomID A callback function to update the room ID when it is received from the server.
  */
@@ -56,7 +58,7 @@ fun MainActivity.CreateScreen(back: () -> Unit, roomID: String, updateRoomID: (S
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Display the room ID if it exists, otherwise show instructions
+        // Display the room ID if it exists, otherwise show description
         if (roomID != "") {
             Text(
                 text = "Room created successfully, your room ID is:",
@@ -85,7 +87,8 @@ fun MainActivity.CreateScreen(back: () -> Unit, roomID: String, updateRoomID: (S
         // Buttons for navigation and creating a room
         Row {
             Button(
-                onClick = { back() }, // Navigate back to the previous screen
+                // Onclick event listener to go back to the landing screen
+                onClick = { back() },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.secondary
                 )
@@ -95,7 +98,8 @@ fun MainActivity.CreateScreen(back: () -> Unit, roomID: String, updateRoomID: (S
             Spacer(modifier = Modifier.width(10.dp))
             if (roomID == "") {
                 Button(
-                    onClick = { socket.emit("initialize-peer-connection") }, // Emit event to initialize a room
+                    // Emit event to initialize a room
+                    onClick = { socket.emit("initialize-peer-connection") },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary
                     )
